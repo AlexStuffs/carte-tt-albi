@@ -351,7 +351,7 @@ function render(){
   // bandeau direct
   const live = state.matches.filter(m => m.status === 'live');
   $('#live').className = 'live-banner' + (live.length ? ' on' : '');
-  $('#live').innerHTML = live.length ? '<i></i>En direct : ' + live.map(m => `${esc(m.team)} ${m.sA ?? '–'}–${m.sB ?? '–'} ${esc(m.opponent)}`).join(' · ') : '';
+  $('#live').innerHTML = live.length ? '<i></i>En direct : ' + live.map(m => `${esc(m.team)} ${m.sA ?? 0} – ${m.sB ?? 0} ${esc(m.opponent)}`).join(' · ') : '';
 
   const vis = state.matches.filter(visible).sort((a, b) => (a.date || 9e15) - (b.date || 9e15));
 

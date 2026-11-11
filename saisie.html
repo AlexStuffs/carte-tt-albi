@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0d0e12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Score TT">
+<title>Albi TT — Saisie du score</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0e12; --panel:#15171d; --panel2:#1c1f27; --line:#2a2d37;
+  --text:#f5f1e6; --muted:#9d9a8c; --accent:#ff6a1a; --live:#ff3b3b; --win:#3ecf8e; --warn:#e8b04a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.wrap{max-width:560px;margin:0 auto;padding:12px 14px 28px;min-height:100dvh;display:flex;flex-direction:column;gap:14px}
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:8px}
+.top h1{margin:0;font:700 24px "Saira Condensed",sans-serif;letter-spacing:.02em;text-transform:uppercase}
+.top h1 b{color:var(--accent)}
+.top .eq{font:700 22px "Saira Condensed",sans-serif;color:var(--accent);letter-spacing:.04em;text-transform:uppercase}
+.match{text-align:center}
+.match .vs{font-size:18px}
+.match .vs b{color:var(--accent)}
+.match .meta{color:var(--muted);font-size:14px;margin-top:2px}
+.pill{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 10px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);margin-top:6px}
+.pill.live{background:var(--live);border-color:var(--live);color:#fff}
+.pill.done{background:var(--win);border-color:var(--win);color:#0d0e12}
+.board{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 10px;display:flex;flex-direction:column;align-items:stretch;gap:10px;text-align:center}
+.side .lab{font:700 18px "Saira Condensed",sans-serif;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side.us .lab{color:var(--accent)}
+.num{font:700 clamp(84px,30vw,150px)/1 "Saira Condensed",sans-serif;font-variant-numeric:tabular-nums}
+.final .num.win{color:var(--win)}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.btn{border:1px solid var(--line);background:var(--panel2);border-radius:12px;padding:0 14px;min-height:52px;font-weight:600}
+.btn:disabled{opacity:.35;cursor:default}
+.btn.plus{background:var(--accent);border-color:var(--accent);color:#fff;min-height:84px;font:700 38px "Saira Condensed",sans-serif}
+.btn.plus:active:not(:disabled){filter:brightness(1.15);transform:scale(.98)}
+.btn.minus{min-height:52px;font:700 24px "Saira Condensed",sans-serif;color:var(--muted)}
+.btn.big{min-height:88px;font:700 30px "Saira Condensed",sans-serif;letter-spacing:.04em;text-transform:uppercase;background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.fin{border-color:var(--win);color:var(--win)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sync{align-self:center;min-height:30px;padding:4px 14px;border-radius:99px;border:1px solid var(--line);background:var(--panel);font-size:14px;font-weight:600;color:var(--muted)}
+.sync.ok{color:var(--win);border-color:var(--win)}
+.sync.pending{color:var(--warn);border-color:var(--warn)}
+.sync.err{color:#fff;background:var(--live);border-color:var(--live)}
+.msg{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;text-align:center}
+.msg.err{border-color:var(--live)}
+.msg small{display:block;color:var(--muted);margin-top:6px}
+.foot{margin-top:auto;color:var(--muted);font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="top"><h1>Albi <b>TT</b> · Score</h1><span class="eq" id="eq"></span></header>
+  <div id="vue"><div class="msg">Chargement…</div></div>
+  <div class="sync" id="sync" hidden></div>
+  <div class="foot">Lien personnel de l’équipe — ne pas le partager.</div>
+</main>
+
+<script>
+/* ===== Réglages ===== */
+const CONFIG = {
+  API_URL: 'https://script.google.com/macros/s/AKfycbwjT4Zy6_8MBLXqNMKP3aWquQdfSVw2t1QlZGOwmm8eOCTEl8-YPoOHTK76ewrZ_WM/exec',   // URL « /exec » du déploiement Apps Script (voir GUIDE_SAISIE.md)
+  REFRESH_MS: 20000,                // resynchronisation quand rien n'est en attente
+  RETRIES: 3                        // essais en cas de coupure réseau (sans risque : requêtes rejouables)
+};
+
+/* ===== Utilitaires ===== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const store = {
+  get(k){ try { return localStorage.getItem(k) || ''; } catch { return ''; } },
+  set(k, v){ try { localStorage.setItem(k, v); } catch {} }
+};
+const rid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+const fmtJour = s => {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s || '');
+  return m ? new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(+m[3], +m[2] - 1, +m[1])) : s;
+};
+
+/* ===== Clé de l'équipe (dans le lien ?k=…, mémorisée pour l'écran d'accueil) ===== */
+let K = new URLSearchParams(location.search).get('k') || '';
+if (K) store.set('att_saisie_k', K); else K = store.get('att_saisie_k');
+
+/* ===== État ===== */
+const S = { equipe: '', r: null, prochaine: null, loaded: false, err: '', sync: '' };   // sync : '' | ok | pending | err
+const q = [];            // actions en attente d'envoi
+let busy = false, lastKey = null, okTimer = null;
+
+/* ===== Réseau ===== */
+async function api(payload){
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 25000);
+  try {
+    const res = await fetch(CONFIG.API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // pas de préalable CORS
+      body: JSON.stringify({ k: K, ...payload }),
+      signal: ctl.signal
+    });
+    return await res.json();
+  } finally { clearTimeout(t); }
+}
+async function apiRetry(payload){
+  let last;
+  for (let i = 0; i < CONFIG.RETRIES; i++){
+    try { return await api(payload); } catch (e){ last = e; await sleep(1200 * (i + 1)); }
+  }
+  throw last;
+}
+function adopt(j){ S.equipe = j.equipe; S.r = j.r; S.prochaine = j.prochaine; S.err = ''; }
+
+/* ===== Actions : mise à jour immédiate puis envoi en file ===== */
+function local(it){
+  const r = S.r; if (!r) return false;
+  if (it.action === 'demarrer'){ if (r.statut !== 'todo') return false; r.statut = 'live'; r.sA ??= 0; r.sB ??= 0; }
+  else if (it.action === 'point'){
+    if (r.statut !== 'live') return false;
+    const f = it.cote === 'A' ? 'sA' : 'sB';
+    if ((r[f] ?? 0) + it.delta < 0) return false;
+    r[f] = (r[f] ?? 0) + it.delta;
+  }
+  else if (it.action === 'terminer'){ if (r.statut !== 'live') return false; r.statut = 'done'; }
+  if (it.action !== 'annuler') r.peutAnnuler = true;   // « annuler » : on attend la réponse du serveur
+  return true;
+}
+function push(it){
+  if (!local(it)) return;
+  if (navigator.vibrate) navigator.vibrate(15);
+  q.push({ ...it, rid: rid() });
+  setSync('pending'); render(); pump();
+}
+async function pump(){
+  if (busy) return; busy = true;
+  while (q.length){
+    const it = q[0];
+    try {
+      const j = await apiRetry({ action: it.action, cote: it.cote, delta: it.delta, rid: it.rid });
+      q.shift();
+      if (!j.ok){ q.length = 0; S.err = ''; await resync(); setSync('err', j.msg || 'Échec'); break; }
+      if (!q.length){ adopt(j); setSync('ok'); }
+    } catch {
+      q.length = 0; setSync('err', 'Pas de réseau — touchez pour resynchroniser'); break;
+    }
+    render();
+  }
+  busy = false; render();
+}
+async function resync(){
+  try { const j = await api({ action: 'etat' }); if (j.ok) adopt(j); } catch {}
+}
+async function refresh(){
+  if (busy || q.length) return;
+  try {
+    const j = await api({ action: 'etat' });
+    if (busy || q.length) return;          // une action a démarré entre-temps : elle fait foi
+    if (j.ok){ adopt(j); if (S.sync === 'err') setSync(''); }
+    else S.err = j.msg || 'Erreur';
+  } catch {
+    if (!S.loaded) S.err = 'Connexion impossible.';
+    else setSync('err', 'Pas de réseau — touchez pour resynchroniser');
+  }
+  S.loaded = true; render();
+}
+
+/* ===== Statut de synchronisation ===== */
+let syncMsg = '';
+function setSync(s, msg){
+  clearTimeout(okTimer);
+  S.sync = s; syncMsg = msg || '';
+  if (s === 'ok') okTimer = setTimeout(() => { if (S.sync === 'ok'){ S.sync = ''; paint(); } }, 2500);
+  paint();
+}
+
+/* ===== Rendu ===== */
+function viewKey(){
+  if (!S.loaded) return 'load';
+  if (S.err) return 'err:' + S.err;
+  if (!S.r) return 'none:' + (S.prochaine ? S.prochaine.jour : '');
+  return `r:${S.r.statut}:${S.equipe}:${S.r.adversaire}`;
+}
+function render(){
+  const key = viewKey();
+  if (key !== lastKey){ $('#vue').innerHTML = view(); lastKey = key; }
+  paint();
+}
+function view(){
+  if (!S.loaded) return '<div class="msg">Chargement…</div>';
+  if (S.err) return `<div class="msg err">${esc(S.err)}<small>Vérifiez le lien reçu ou demandez-en un nouveau.</small></div>`;
+  const r = S.r;
+  if (!r){
+    const p = S.prochaine;
+    return `<div class="msg">Pas de rencontre aujourd’hui pour ${esc(S.equipe)}.${p ? `<small>Prochaine : ${esc(fmtJour(p.jour))}${p.heure ? ' à ' + esc(p.heure) : ''} contre ${esc(p.adversaire)}.</small>` : ''}</div>`;
+  }
+  const head = `<div class="match"><div class="vs"><b>${esc(S.equipe)}</b> contre ${esc(r.adversaire)}</div>
+    <div class="meta">${esc([r.heure, r.ville].filter(Boolean).join(' · '))}</div>
+    <span class="pill ${r.statut}">${r.statut === 'live' ? 'En direct' : r.statut === 'done' ? 'Terminée' : 'À venir'}</span></div>`;
+  if (r.statut === 'todo')
+    return head + `<button class="btn big" data-a="start">Démarrer la rencontre</button>`;
+  const board = (cote, lab, us, ctrl) => `<div class="side ${us ? 'us' : ''}"><div class="lab">${esc(lab)}</div><div class="num" id="n${cote}">0</div>${ctrl ? `
+      <button class="btn plus" data-a="pt" data-c="${cote}" data-d="1" aria-label="+1 ${esc(lab)}">+1</button>
+      <button class="btn minus" data-a="pt" data-c="${cote}" data-d="-1" aria-label="−1 ${esc(lab)}">−1</button>` : ''}</div>`;
+  if (r.statut === 'live')
+    return head + `<div class="board">${board('A', S.equipe, true, true)}${board('B', r.adversaire, false, true)}</div>
+      <div class="row2"><button class="btn" data-a="undo" id="bUndo">↶ Annuler la dernière action</button>
+      <button class="btn fin" data-a="end">Terminer la rencontre</button></div>`;
+  return head + `<div class="board final">${board('A', S.equipe, true, false)}${board('B', r.adversaire, false, false)}</div>
+    <button class="btn" data-a="undo" id="bUndo">↶ Annuler la dernière action (rouvrir)</button>`;
+}
+function paint(){
+  const r = S.r;
+  if (r && r.statut !== 'todo'){
+    const a = $('#nA'), b = $('#nB');
+    if (a) a.textContent = r.sA ?? 0;
+    if (b) b.textContent = r.sB ?? 0;
+    document.querySelectorAll('.final .num').forEach(n => n.classList.remove('win'));
+    if (r.statut === 'done' && (r.sA ?? 0) > (r.sB ?? 0) && a) a.classList.add('win');
+    document.querySelectorAll('[data-a=pt][data-d="-1"]').forEach(btn => {
+      btn.disabled = (btn.dataset.c === 'A' ? (r.sA ?? 0) : (r.sB ?? 0)) <= 0;
+    });
+    const u = $('#bUndo'); if (u) u.disabled = !r.peutAnnuler;
+  }
+  $('#eq').textContent = S.equipe;
+  const el = $('#sync');
+  const txt = { ok: 'Enregistré ✓', pending: 'Envoi…', err: syncMsg || 'Échec' }[S.sync];
+  el.hidden = !txt; el.className = 'sync ' + S.sync;
+  el.textContent = txt || '';
+  el.dataset.a = S.sync === 'err' ? 'retry' : '';
+}
+
+/* ===== Interactions ===== */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-a]'); if (!b || b.disabled) return;
+  switch (b.dataset.a){
+    case 'start': push({ action: 'demarrer' }); break;
+    case 'pt': push({ action: 'point', cote: b.dataset.c, delta: +b.dataset.d }); break;
+    case 'undo': push({ action: 'annuler' }); break;
+    case 'end':
+      if (confirm(`Terminer la rencontre sur le score ${S.r.sA ?? 0} – ${S.r.sB ?? 0} ?`)) push({ action: 'terminer' });
+      break;
+    case 'retry': setSync('pending'); resync().then(() => { setSync(''); render(); }); break;
+  }
+});
+
+/* ===== Écran allumé pendant la rencontre ===== */
+let wake = null;
+async function keepAwake(){
+  try { if ('wakeLock' in navigator && S.r?.statut === 'live' && !document.hidden && !wake){
+    wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => wake = null);
+  } } catch {}
+}
+document.addEventListener('click', keepAwake);
+
+/* ===== Démarrage ===== */
+(async function start(){
+  if (!K){ S.loaded = true; S.err = 'Lien incomplet : il manque la clé de l’équipe.'; return render(); }
+  if (CONFIG.API_URL.startsWith('COLLER')){ S.loaded = true; S.err = 'Page non configurée (API_URL).'; return render(); }
+  await refresh();
+  setInterval(() => { if (!document.hidden) refresh(); }, CONFIG.REFRESH_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden){ refresh(); keepAwake(); } });
+})();
+</script>
+</body>
+</html>

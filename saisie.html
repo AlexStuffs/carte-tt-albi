@@ -119,8 +119,18 @@ async function apiRetry(payload){
 function adopt(j){ S.equipe = j.equipe; S.r = j.r; S.prochaine = j.prochaine; S.err = ''; }
 
 /* ===== Actions : mise à jour immédiate puis envoi en file ===== */
+const hist = [];         // actions de cette session, pour annuler sans attendre le serveur
+const opOf = it => it.action === 'point' ? it.cote + (it.delta > 0 ? '+1' : '-1') : it.action;
+function undoLocal(){
+  const op = hist.pop(), r = S.r;
+  if (!op) return;
+  if (op === 'demarrer'){ r.statut = 'todo'; r.sA = null; r.sB = null; r.peutAnnuler = false; }
+  else if (op === 'terminer') r.statut = 'live';
+  else { const f = op[0] === 'A' ? 'sA' : 'sB'; r[f] = Math.max(0, (r[f] ?? 0) + (op[1] === '+' ? -1 : 1)); }
+}
 function local(it){
   const r = S.r; if (!r) return false;
+  if (it.action === 'annuler'){ undoLocal(); return true; }   // si l'historique est vide, on attend le serveur
   if (it.action === 'demarrer'){ if (r.statut !== 'todo') return false; r.statut = 'live'; r.sA ??= 0; r.sB ??= 0; }
   else if (it.action === 'point'){
     if (r.statut !== 'live') return false;
@@ -134,6 +144,7 @@ function local(it){
 }
 function push(it){
   if (!local(it)) return;
+  if (it.action !== 'annuler') hist.push(opOf(it));
   if (navigator.vibrate) navigator.vibrate(15);
   q.push({ ...it, rid: rid() });
   setSync('pending'); render(); pump();
@@ -145,10 +156,10 @@ async function pump(){
     try {
       const j = await apiRetry({ action: it.action, cote: it.cote, delta: it.delta, rid: it.rid });
       q.shift();
-      if (!j.ok){ q.length = 0; S.err = ''; await resync(); setSync('err', j.msg || 'Échec'); break; }
+      if (!j.ok){ q.length = 0; hist.length = 0; S.err = ''; await resync(); setSync('err', j.msg || 'Échec'); break; }
       if (!q.length){ adopt(j); setSync('ok'); }
     } catch {
-      q.length = 0; setSync('err', 'Pas de réseau — touchez pour resynchroniser'); break;
+      q.length = 0; hist.length = 0; setSync('err', 'Pas de réseau — touchez pour resynchroniser'); break;
     }
     render();
   }
@@ -162,7 +173,7 @@ async function refresh(){
   try {
     const j = await api({ action: 'etat' });
     if (busy || q.length) return;          // une action a démarré entre-temps : elle fait foi
-    if (j.ok){ adopt(j); if (S.sync === 'err') setSync(''); }
+    if (j.ok){ adopt(j); hist.length = 0; if (S.sync === 'err') setSync(''); }
     else S.err = j.msg || 'Erreur';
   } catch {
     if (!S.loaded) S.err = 'Connexion impossible.';
